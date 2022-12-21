@@ -1,0 +1,534 @@
+(async function () {
+    $("document").ready(async function(){
+
+        var compoundCalculator = {
+            total_principal: [],
+            total_interest: [],
+            initial_investment: [],
+            label: [],
+            contribution_amount: [],
+        };
+        var initialize = true;
+        var lastPrincipal = 0;
+        var lastInterest = 0;
+
+        var initial_deposit = document.querySelector('#initial_deposit'),
+            // investment_timespan_text = document.querySelector('#investment_timespan_text'),
+            estimated_return = document.querySelector('#estimated_return'),
+            future_balance = document.querySelector('#future_balance'),
+            compound_frequency = document.getElementById('compound_frequency'),
+            contribution_frequency = document.querySelector('.contribution_frequency'),
+            inflation_rate = document.querySelector('#inflation_rate');
+    
+        async function updateValue(element, action) {
+
+            var min = parseFloat(element.getAttribute('min')),
+                max = parseFloat(element.getAttribute('max')),
+                step = parseFloat(element.getAttribute('step')) || 1,
+                oldValue = element.dataset.value || element.defaultValue || 0,
+                newValue = parseFloat(element.value.replace(/\D/g, ''));
+    
+            if (isNaN(parseFloat(newValue))) {
+                newValue = oldValue;
+            } else {
+                if (action == 'add') {
+                    newValue += step;
+                } else if (action == 'sub') {
+                    newValue -= step;
+                }
+    
+                newValue = newValue < min ? min : newValue > max ? max : newValue;
+            }
+    
+            element.dataset.value = newValue;
+            // element.value = (element.dataset.prepend || '') + newValue + (element.dataset.append || '');
+    
+            updateChart();
+        }
+    
+
+        
+        async function getChartData() {
+    
+            let contributionCount = document.getElementById("contribution-body").children.length;
+
+            var P = parseFloat(initial_deposit.dataset.value), // Principal (initial investment)
+                n = parseInt(compound_frequency.value), // Compound Frequency (monthly/annual/quarterly value defined in HTML)
+                r = parseFloat(estimated_return.dataset.value / 100), // Annual Interest Rate
+                currentYear = 1;
+
+
+            var contribution_amount = document.getElementsByClassName('contribution_amount');
+            var contribution_frequency = document.getElementsByClassName('contribution_frequency');
+            var investment_timespan = document.getElementsByClassName('investment_timespan');
+
+            // i++ is the same as i = i + 1
+            for(let i = 0; i < contributionCount; i++) // CONTRIBUTION BLOCK LOOP — computes data from contribution block
+            {
+
+                var c = parseFloat(contribution_amount[i].dataset.value.replace(/\D/g, '')), // Contribution Amount
+                    n2 = parseInt(contribution_frequency[i].value.replace(/\D/g, '')), // Contribution Frequency (monthly/weekly/quarterly/annually value defined in HTML)
+                    t = parseInt(investment_timespan[i].value.replace(/\D/g, '')); // Investment Time Span (in years)
+                   
+
+                if(contribution_amount[i].getAttribute("data-withdrawal") == "true"){
+                    c = -c;
+                }
+                
+
+                if(i == 0){
+                    compoundCalculator.total_principal[0]  = [P];
+                    compoundCalculator.total_interest[0]  = [P];
+                    compoundCalculator.initial_investment[0]  = [P];
+                    compoundCalculator.label[0] = [0]; // y-axes year
+                    compoundCalculator.contribution_amount[0] = c;
+                }
+                else{
+                    compoundCalculator.total_principal[i]  = [];
+                    compoundCalculator.total_interest[i]  = [];
+                    compoundCalculator.initial_investment[i]  = [];
+                    compoundCalculator.label[i] = []; // y-axes year
+                    compoundCalculator.contribution_amount[i] = c;
+                    // P = parseInt(compoundCalculator.total_principal[i-1][compoundCalculator.total_principal[i-1].length-1]) + parseInt(contribution_amount[i].dataset.value);
+                    currentYear = compoundCalculator.label[i-1][compoundCalculator.label[i-1].length-1] + 1;
+                }
+
+
+                for (var year = currentYear; year < currentYear + t; year++) {
+                    compoundCalculator.label[i].push(year);
+                }
+        
+                var principal_dataset = {
+                    label: 'Transactions',
+                    backgroundColor: '#2559E3',
+                    fill: 'origin',
+                    data: []
+                };
+        
+                var interest_dataset = {
+                    label: "Total Interest",
+                    backgroundColor: '#40DD7F',
+                    fill: 'origin',
+                    data: []
+                };
+                
+                var initial_investment = {
+                    label: "Initial Investment",
+                    backgroundColor: 'rgba(118, 209, 248,0.6)',
+                    fill: 'origin',
+                    data: []
+                };
+
+                let firstCompoundYear = compoundCalculator.label.filter((years, index) => index < i+1).map(item => item.length).reduce((a, b) => a + b, 0);
+                let cPrev = compoundCalculator.contribution_amount[i-1];
+                let yPrincipal = lastPrincipal - parseInt(P + ( c * n2 * (firstCompoundYear - 1 - t) ));
+                let yInterest = lastInterest - (c * (Math.pow(1 + r / n, n * (firstCompoundYear - 1 - t)) - 1) / (r / n2));
+               
+				console.log('1_yInterest:', yInterest);
+				console.log('1_lastInterest:', lastInterest);
+				console.log('c:', c);
+				console.log('r:', r);
+				console.log('n:', n);
+				console.log('t:', t);
+				console.log('firstCompoundYear:', firstCompoundYear);
+				console.log('n2:', n2);
+
+                for (var j = firstCompoundYear - t; j <= firstCompoundYear - 1; j++) {
+                    var principal = P + ( c * n2 * j ),
+                        interest = 0,
+                        balance = principal;
+
+                    if(i > 0){
+                        principal = yPrincipal + principal;
+                    }
+
+                    if (r) {
+                        var x = Math.pow(1 + r / n, n * j),
+                            compound_interest = P * x,
+                            contribution_interest = c * (x - 1) / (r / n2);
+
+                        if(i > 0){
+                            contribution_interest = contribution_interest + yInterest;
+                        }
+                        interest = (compound_interest + contribution_interest - principal).toFixed(0)
+                        balance = (compound_interest + contribution_interest).toFixed(0);
+                        
+                        console.log('j:', j);
+                        console.log('interest:',interest);                        
+                        console.log('compound_interest:', compound_interest);
+                        console.log('contribution_interest:', contribution_interest);
+                        console.log('2_yInterest:', yInterest);
+
+                        if(interest<0){
+                            interest= 0
+                        }
+                    }
+        
+                    future_balance.innerHTML = '$' + balance;
+                    compoundCalculator.total_principal[i].push(parseInt(principal));
+                    compoundCalculator.total_interest[i].push(parseInt(principal)+parseInt(interest));
+                    compoundCalculator.initial_investment[i].push(parseInt(P));
+
+                    // if(j < firstCompoundYear - 1){
+                        lastPrincipal = principal;
+                        lastInterest = contribution_interest;
+                    // }
+                }
+
+            }
+
+            // var a,b,c,d = ...[1,2,3,4]
+
+
+            principal_dataset.data = [].concat(...compoundCalculator.total_principal);
+            interest_dataset.data = [].concat(...compoundCalculator.total_interest);
+            initial_investment.data = [].concat(...compoundCalculator.initial_investment);
+            var labels = [].concat(...compoundCalculator.label);
+
+            currentYear = compoundCalculator.label[compoundCalculator.label.length-1][compoundCalculator.label[compoundCalculator.label.length-1].length-1]
+
+            document.getElementById("outcome").getElementsByClassName("total-years")[0].textContent = currentYear;
+
+            let balanceFormatted = await formatNumber(balance);
+            document.getElementById("outcome").getElementsByClassName("total-balance")[0].textContent = balanceFormatted.formatted;
+
+            let inflationRateFormatted = await formatNumber(inflation_rate.dataset.value);
+            console.log(inflationRateFormatted)
+            document.getElementById("inflation-outcome").getElementsByClassName("inflation-value")[0].textContent = inflationRateFormatted.formatted;
+            
+            // total balance / ((1+(%/100))^t)
+            let balanceAdjusted = parseInt(balance / Math.pow((1+(inflation_rate.dataset.value/100)), currentYear));
+            let balanceAdjustedFormat = await formatNumber(balanceAdjusted);
+            
+            document.getElementById("inflation-outcome").getElementsByClassName("outcome-with-inflation")[0].textContent = balanceAdjustedFormat.formatted;
+
+            return {
+                labels: labels,
+                datasets: [initial_investment, principal_dataset, interest_dataset]
+            }
+
+        }
+    
+        async function updateChart() {
+            var data = await getChartData();
+            let initialInvestment = parseFloat(initial_deposit.dataset.value);
+            
+            chart.data.labels = data.labels;
+            chart.data.datasets[0].data = data.datasets[1].data.map(item => initialInvestment) // flat initial investment
+            chart.data.datasets[1].data = data.datasets[1].data; // principal dataset
+            chart.data.datasets[2].data = data.datasets[2].data; // interest dataset
+
+            chart.update();
+        }
+
+        addEvents()
+    
+        initial_deposit.addEventListener('change', async function () {
+            await formatInput($(this).val(),this);
+            updateValue(this);
+        });
+        initial_deposit.addEventListener('input', async function () {
+            await formatInput($(this).val(),this);
+            updateValue(this);
+        });
+        estimated_return.addEventListener('change', function () {
+            updateValue(this);
+        });
+
+    
+        // investment_timespan.addEventListener('change', function () {
+        //     updateChart();
+        // });
+    
+        // investment_timespan.addEventListener('input', function () {
+        //     console.log(this)
+        //     updateChart();
+        // });
+
+        
+
+        var ctx = document.getElementById('myChart'),
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: (await getChartData()),
+                options: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        align: 'center',
+                        labels: {
+                            boxHeight: '40px',
+                        }
+                    },
+                    layout: {
+                        padding: 10,
+                    },
+                    tooltips: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function (tooltipItem, data) {
+                                return data.datasets[tooltipItem.datasetIndex].label + ': $' + tooltipItem.yLabel;
+                            }
+                        }
+                    },
+                    responsive: true,
+                    scales: {
+                        xAxes: [{
+                            stacked: true,
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Timeline (Years)'},
+                                ticks: {
+                                    maxTicksLimit: 15,
+                                    Color: '#F9FFFA',
+                                    padding: 8,
+                                    }
+                        }],
+                        yAxes: [{
+                            stacked: false,
+                            ticks: {
+                                callback: function (value) {
+                                    if (value >= 1000000000 || value <= -1000000000 ) {
+                                        value = value / 1e9 + 'B';
+                                    } else if (value >= 1000000 || value <= -1000000) {
+                                        value = value / 1e6 + 'M';
+                                    } else  if (value >= 1000 || value <= -1000) {
+                                        value = value / 1e3 + 'K';
+                                    }
+                                    return '$' + value;
+                                },
+                                stepSize: {
+                                callback: function (value) {
+                                    if (Math.floor >= 10000 || value <= -10000 ) {
+                                        return 20;
+                                }
+                                }
+                                },
+                                beginAtZero: true,
+                                padding: 8,
+                            },
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'Funds'
+                            },
+                            maxTicks: 5,
+                        }],
+                        grid: {tickColor: '#F9FFFA'}
+                    },
+                }
+            });
+    
+    
+            
+        // add row //
+    
+        let contributionRow = `
+             <div class="row d-flex align-items-center" style="padding-top:8px;">
+                <div class="col" style="padding-left:0px;">
+                                    <div class="form-group">
+                                        <input onclick="this.select();" class="field form-control text-center contribution_amount" type="text" name="contribution_amount" min="0" step="50" value="" data-contribution="true" data-value="100" data-prepend="$" placeholder="+$100">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="form-group">
+                                    <div class="hidearrow">
+                                       <select class="field d-inline form-select contribution_frequency" aria-label="Default select example" name="contribution_frequency">
+                                            <option value="12" selected>monthly</option>
+                                            <option value="1">annually</option>
+                                            <option value="52">weekly</option>
+                                            <option value="4">quarterly</option>
+                                        </select>
+                                    </div>
+        
+                                    </div>
+                                    
+                                </div>
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <span class="d-inline">for</span>
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <input onclick="this.select();" class="field form-control investment_timespan" type="number" name="investment_timespan" min="1" max="50" value="" placeholder="0">
+                                    </div>
+                                </div> 
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <span class="d-inline">years</span>
+                                    </div>
+                                </div>
+                                                            <div class="col">
+                                <div class="form-group">
+                                    <button class="btn btn-danger delete-row"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </div>
+            </div>
+        `;
+
+        let withdrawalRow = `
+             <div class="row d-flex align-items-center" style="padding-top:8px;">
+                <div class="col" style="padding-left:0px;">
+                                    <div class="form-group">
+                                        <input onclick="this.select();" class="field form-control text-center contribution_amount" type="text" name="contribution_amount" min="0" step="50" value="" data-withdrawal="true" data-value="100" data-prepend="-$" placeholder="–$100">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="form-group">
+                                    <div class="hidearrow">
+                                       <select class="field d-inline form-select contribution_frequency" aria-label="Default select example" name="contribution_frequency">
+                                            <option value="12" selected>monthly</option>
+                                            <option value="1">annually</option>
+                                            <option value="52">weekly</option>
+                                            <option value="4">quarterly</option>
+                                        </select>
+                                    </div>
+                                    </div>
+                                    
+                                </div>
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <span class="d-inline">for</span>
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <input onclick="this.select();" class="field form-control investment_timespan" type="number" name="investment_timespan" min="1" max="50" value="" placeholder="0">
+                                    </div>
+                                </div> 
+                                <div class="col-auto">
+                                    <div class="form-group">
+                                        <span class="d-inline">years</span>
+                                    </div>
+                                </div>
+                                                            <div class="col">
+                                <div class="form-group">
+                                    <button class="btn btn-danger delete-row"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </div>
+            </div>
+        `;
+
+        $("#add-contribution").click(function(){
+            $("#contribution-body").append(contributionRow);
+
+            initialize = false;
+            
+            addEvents()
+        });
+
+        $("#neg-contribution").click(function(){
+            $("#contribution-body").append(withdrawalRow);
+
+            initialize = false;
+            
+            addEvents()
+        });
+
+        async function addEvents(){
+            $(".contribution_amount").off();
+            $("#inflation_rate").off();
+            $(".investment_timespan").off();
+            $(".delete-row").off();
+
+            $(".contribution_amount").on('change',async function(){
+                //             let index = $(this).parent().children();
+                // index = index.index(this);
+                await formatInput($(this).val(),this);
+                updateValue(this);
+            })
+
+            $(".contribution_amount").on('input',async function(){
+                //             let index = $(this).parent().children();
+                // index = index.index(this);
+                await formatInput($(this).val(),this);
+                updateValue(this);
+            })
+
+
+        
+
+            $(".investment_timespan").change(async function(){
+                updateChart();
+            })
+            $(".investment_timespan").on('input', async function(){
+                updateChart();
+            })
+            $("#inflation_rate").on('input', async function(){
+                await formatInput($(this).val(),this);
+                updateValue(this);
+            })
+                    
+            $("#inflation_rate").change(async function(){
+                await formatInput($(this).val(),this);
+                updateValue(this);
+            })
+
+            $(".delete-row").on('click', function(){
+                index =  $('.delete-row').index(this) + 1;
+
+                compoundCalculator.total_principal.splice(index, 1);
+                compoundCalculator.total_interest.splice(index, 1);
+                compoundCalculator.initial_investment.splice(index, 1);
+                compoundCalculator.label.splice(index, 1);
+                compoundCalculator.contribution_amount.splice(index, 1);
+
+                let child = document.getElementById("contribution-body").children[index];
+
+                document.getElementById("contribution-body").removeChild(child);
+
+                updateChart();
+            });
+
+            var radios = document.querySelectorAll('[name="contribution_frequency"], [name="compound_frequency"]');
+            for (var j = 0; j < radios.length; j++) {
+                radios[j].addEventListener('change', updateChart);
+            }
+        
+            var buttons = document.querySelectorAll('[data-counter]');
+            for (var i = 0; i < buttons.length; i++) {
+                var button = buttons[i];
+        
+                button.addEventListener('click', function () {
+                    var field = document.querySelector('[name="' + this.dataset.field + '"]'),
+                        action = this.dataset.counter;
+        
+                    if (field) {
+                        updateValue(field, action);
+                    }
+                });
+            }
+        }
+    })
+
+    async function formatNumber(num)
+    {
+        let number = parseInt(String(num).replace(/\D/g, ''));
+        let dollarUSLocale = Intl.NumberFormat('en-US');
+        let formatted = dollarUSLocale.format(number)
+
+        return {number: number, formatted: formatted};
+        
+    }
+
+    async function formatInput(num, element)
+    {
+        let result = await formatNumber(num);
+
+        if(!isNaN(result.number)){
+            if(element.getAttribute("data-withdrawal") == "true"){
+                element.value = "-$"+result.formatted;
+            }
+            else{
+                element.value = "$"+result.formatted;
+            }
+            if(element.getAttribute("data-contribution") == "true"){
+                element.value = "+$"+result.formatted;
+            }
+        }
+    }
+
+
+})();
+
